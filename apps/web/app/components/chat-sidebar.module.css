@@ -1,0 +1,164 @@
+.sidebarToggle {
+  display: none;
+  position: fixed;
+  top: 1rem;
+  left: 1rem;
+  z-index: 1001;
+  background: rgba(8, 8, 12, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 12px;
+  padding: 0.5rem;
+  color: var(--foreground);
+  font-size: 1.2rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.sidebarToggle:hover {
+  background: rgba(8, 8, 12, 0.95);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.sidebar {
+  width: 280px;
+  background: rgba(10, 11, 18, 0.95);
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  z-index: 10;
+  backdrop-filter: blur(12px);
+  transition: transform 0.3s ease, opacity 0.3s ease;
+}
+
+.sidebarClosed {
+  transform: translateX(-100%);
+  opacity: 0;
+}
+
+.sidebarHeader {
+  padding: 1.5rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.newChatButton {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  background: linear-gradient(120deg, rgba(109, 143, 255, 0.15) 0%, rgba(166, 138, 234, 0.15) 100%);
+  border: 1px solid rgba(109, 143, 255, 0.3);
+  border-radius: 16px;
+  color: #fff;
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.newChatButton:hover {
+  background: linear-gradient(120deg, rgba(109, 143, 255, 0.25) 0%, rgba(166, 138, 234, 0.25) 100%);
+  border-color: rgba(109, 143, 255, 0.5);
+  transform: translateY(-1px);
+}
+
+.newChatIcon {
+  font-size: 1.2rem;
+  font-weight: 300;
+}
+
+.conversationsList {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.5rem;
+}
+
+.conversationItem {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.25rem;
+  padding: 0.75rem;
+  background: transparent;
+  border: none;
+  border-radius: 12px;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.conversationItem:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.conversationItem.active {
+  background: rgba(109, 143, 255, 0.15);
+  border: 1px solid rgba(109, 143, 255, 0.3);
+}
+
+.conversationTitle {
+  color: #fff;
+  font-weight: 600;
+  font-size: 0.9rem;
+  line-height: 1.3;
+}
+
+.conversationPreview {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 0.8rem;
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.conversationTimestamp {
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 0.75rem;
+  margin-top: 0.25rem;
+}
+
+.sidebarFooter {
+  padding: 1rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.settingsButton {
+  width: 100%;
+  padding: 0.75rem;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.settingsButton:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: #fff;
+}
+
+@media (max-width: 768px) {
+  .sidebarToggle {
+    display: block;
+  }
+  
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    z-index: 1000;
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+  }
+  
+  .sidebarClosed {
+    transform: translateX(-100%);
+  }
+}

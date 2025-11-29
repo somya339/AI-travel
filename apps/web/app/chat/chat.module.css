@@ -1,0 +1,31 @@
+.chatContainer {
+  display: flex;
+  height: 100vh;
+  background: var(--background);
+  position: relative;
+  overflow: hidden;
+}
+
+.chatContainer::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+      120% 120% at -10% -10%,
+      rgba(102, 126, 234, 0.15),
+      transparent 55%
+    ),
+    radial-gradient(
+      100% 100% at 110% 10%,
+      rgba(241, 91, 181, 0.12),
+      transparent 60%
+    );
+  pointer-events: none;
+  z-index: 1;
+}
+
+@media (max-width: 768px) {
+  .chatContainer {
+    flex-direction: column;
+  }
+}
