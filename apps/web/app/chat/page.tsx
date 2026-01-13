@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import { ChatSidebar } from '../components/chat-sidebar';
 import { ChatArea } from '../components/chat-area';
+import { PdfUpload } from '../components/pdf-upload';
+import { sendChatMessage } from '../lib/llm';
 import styles from './chat.module.css';
 
 type Message = {
@@ -10,6 +12,15 @@ type Message = {
   role: 'user' | 'assistant';
   content: string;
   timestamp: string;
+  attachments?: FileAttachment[];
+};
+
+type FileAttachment = {
+  id: string;
+  name: string;
+  type: string;
+  size: number;
+  url: string;
 };
 
 type Conversation = {
@@ -76,19 +87,20 @@ export default function ChatPage() {
 
   const currentChat = conversations.find(c => c.id === currentConversation);
 
-  const handleSendMessage = (content: string) => {
-    if (!content.trim()) return;
+  const handleSendMessage = async (content: string, attachments?: FileAttachment[]) => {
+    if (!content.trim() && !attachments) return;
 
-    const newMessage: Message = {
+    const userMessage: Message = {
       id: Date.now().toString(),
       role: 'user',
       content: content.trim(),
-      timestamp: 'Just now'
+      timestamp: 'Just now',
+      attachments: attachments && attachments.length > 0 ? attachments : undefined
     };
 
     setConversations(prev => prev.map(conv => {
       if (conv.id === currentConversation) {
-        const updatedMessages = [...conv.messages, newMessage];
+        const updatedMessages = [...conv.messages, userMessage];
         return {
           ...conv,
           messages: updatedMessages,
@@ -99,12 +111,14 @@ export default function ChatPage() {
       return conv;
     }));
 
-    // Simulate assistant response
-    setTimeout(() => {
+    try {
+      // Call the real LLM API with files
+      const assistantResponse = await sendChatMessage(content, attachments);
+      
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: 'I understand you\'re interested in ' + content.trim() + '. Let me help you plan this perfectly!',
+        content: assistantResponse,
         timestamp: 'Just now'
       };
 
@@ -112,12 +126,32 @@ export default function ChatPage() {
         if (conv.id === currentConversation) {
           return {
             ...conv,
-            messages: [...conv.messages, newMessage, assistantMessage]
+            messages: [...conv.messages, userMessage, assistantMessage]
           };
         }
         return conv;
       }));
-    }, 1000);
+    } catch (error) {
+      console.error('Error getting LLM response:', error);
+      
+      // Fallback message in case of error
+      const errorMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        role: 'assistant',
+        content: 'Sorry, I encountered an error while processing your request. Please try again later.',
+        timestamp: 'Just now'
+      };
+
+      setConversations(prev => prev.map(conv => {
+        if (conv.id === currentConversation) {
+          return {
+            ...conv,
+            messages: [...conv.messages, userMessage, errorMessage]
+          };
+        }
+        return conv;
+      }));
+    }
   };
 
   return (

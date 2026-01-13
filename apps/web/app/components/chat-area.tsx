@@ -7,6 +7,15 @@ type Message = {
   role: 'user' | 'assistant';
   content: string;
   timestamp: string;
+  attachments?: FileAttachment[];
+};
+
+type FileAttachment = {
+  id: string;
+  name: string;
+  type: string;
+  size: number;
+  url: string;
 };
 
 type Conversation = {
@@ -20,16 +29,19 @@ type Conversation = {
 type ChatAreaProps = {
   conversation: Conversation | undefined;
   messages: Message[];
-  onSendMessage: (content: string) => void;
+  onSendMessage: (content: string, attachments?: FileAttachment[]) => void;
   sidebarOpen: boolean;
 };
 
 export function ChatArea({ conversation, messages, onSendMessage, sidebarOpen }: ChatAreaProps) {
   const [inputValue, setInputValue] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const [attachments, setAttachments] = useState<FileAttachment[]>([]);
+  const [dragActive, setDragActive] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const scrollToBottom = () => {
     if (messagesEndRef.current) {
@@ -59,10 +71,11 @@ export function ChatArea({ conversation, messages, onSendMessage, sidebarOpen }:
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inputValue.trim() || isTyping) return;
+    if ((!inputValue.trim() && attachments.length === 0) || isTyping) return;
 
-    onSendMessage(inputValue);
+    onSendMessage(inputValue, attachments.length > 0 ? attachments : undefined);
     setInputValue('');
+    setAttachments([]);
     setIsTyping(true);
     
     // Reset typing state after assistant response would come
@@ -74,6 +87,66 @@ export function ChatArea({ conversation, messages, onSendMessage, sidebarOpen }:
       e.preventDefault();
       handleSubmit(e);
     }
+  };
+
+  const handleFileSelect = (files: FileList | null) => {
+    if (!files) return;
+    
+    const validTypes = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+    const newAttachments: FileAttachment[] = [];
+    
+    Array.from(files).forEach(file => {
+      if (validTypes.includes(file.type) && file.size <= 10 * 1024 * 1024) { // 10MB limit
+        const url = URL.createObjectURL(file);
+        newAttachments.push({
+          id: Math.random().toString(36).substr(2, 9),
+          name: file.name,
+          type: file.type,
+          size: file.size,
+          url
+        });
+      }
+    });
+    
+    setAttachments(prev => [...prev, ...newAttachments]);
+  };
+
+  const handleDrag = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === "dragenter" || e.type === "dragover") {
+      setDragActive(true);
+    } else if (e.type === "dragleave") {
+      setDragActive(false);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+    
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      handleFileSelect(e.dataTransfer.files);
+    }
+  };
+
+  const removeAttachment = (id: string) => {
+    setAttachments(prev => {
+      const attachment = prev.find(a => a.id === id);
+      if (attachment) {
+        URL.revokeObjectURL(attachment.url);
+      }
+      return prev.filter(a => a.id !== id);
+    });
+  };
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
   return (
@@ -104,6 +177,7 @@ export function ChatArea({ conversation, messages, onSendMessage, sidebarOpen }:
                 role={message.role}
                 content={message.content}
                 timestamp={message.timestamp}
+                attachments={message.attachments}
               />
             ))}
             {isTyping && (
@@ -124,7 +198,53 @@ export function ChatArea({ conversation, messages, onSendMessage, sidebarOpen }:
       
       <div className={styles.inputContainer}>
         <form onSubmit={handleSubmit} className={styles.inputForm}>
-          <div className={styles.inputWrapper}>
+          {attachments.length > 0 && (
+            <div className={styles.attachmentsPreview}>
+              {attachments.map(attachment => (
+                <div key={attachment.id} className={styles.attachmentItem}>
+                  {attachment.type.startsWith('image/') ? (
+                    <img src={attachment.url} alt={attachment.name} className={styles.attachmentPreview} />
+                  ) : (
+                    <div className={styles.attachmentIcon}>📄</div>
+                  )}
+                  <div className={styles.attachmentInfo}>
+                    <span className={styles.attachmentName}>{attachment.name}</span>
+                    <span className={styles.attachmentSize}>{formatFileSize(attachment.size)}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => removeAttachment(attachment.id)}
+                    className={styles.removeAttachment}
+                  >
+                    x
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          <div 
+            className={`${styles.inputWrapper} ${dragActive ? styles.dragActive : ''}`}
+            onDragEnter={handleDrag}
+            onDragLeave={handleDrag}
+            onDragOver={handleDrag}
+            onDrop={handleDrop}
+          >
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".pdf,image/jpeg,image/jpg,image/png,image/gif,image/webp"
+              multiple
+              onChange={(e) => handleFileSelect(e.target.files)}
+              className={styles.fileInput}
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className={styles.attachButton}
+              title="Attach files (PDF, images)"
+            >
+              📎
+            </button>
             <textarea
               ref={textareaRef}
               className={styles.messageInput}
@@ -138,7 +258,7 @@ export function ChatArea({ conversation, messages, onSendMessage, sidebarOpen }:
             <button 
               type="submit"
               className={styles.sendButton}
-              disabled={!inputValue.trim() || isTyping}
+              disabled={(!inputValue.trim() && attachments.length === 0) || isTyping}
             >
               <span>Send</span>
               <span className={styles.sendIcon}>→</span>
