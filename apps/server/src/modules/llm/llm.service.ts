@@ -3,6 +3,7 @@ import Groq from 'groq-sdk';
 import { ConfigService } from '@nestjs/config';
 import { VectorService } from '../vector/vector.service';
 import { RecursiveCharacterTextSplitter } from '@langchain/textsplitters';
+import OpenAI from 'openai';
 
 @Injectable()
 export class LlmService {
@@ -21,15 +22,22 @@ export class LlmService {
         separators: ['\n\n', '\n', ' ', ''],
     });
 
-    // Check if Python embedding service is available
-    private checkPythonServiceHealth = async () => {
-        try {
-            const response = await fetch('http://localhost:8000/health');
-            return response.ok;
-        } catch (error) {
-            console.error('Python embedding service not available:', error);
-            return false;
+    private getOpenAIClient = () => {
+        const apiKey = this.configService.get<string>('OPENAI_API_KEY');
+        if (!apiKey) {
+            throw new Error('OPENAI_API_KEY is not set');
         }
+        return new OpenAI({ apiKey });
+    };
+
+    private normalizeItineraryMarkdown = (raw: string) => {
+        let text = (raw ?? '').trim();
+
+        text = text.replace(/^```(?:md|markdown)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
+        text = text.replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, '').trim();
+        text = text.replace(/<\/?(?:html|head|body)[^>]*>/gi, '').trim();
+
+        return text;
     };
 
     fetchResponsefromLLM = async (userPrompt: string) => {
@@ -39,77 +47,69 @@ export class LlmService {
         const data = await client.chat.completions.create({
             model: "llama-3.1-8b-instant",
             messages: [
-                { role: "user", content: userPrompt },
                 {
-                    role: 'user', content: `
-        You are a travel itinerary designer for a web app.
-        Your job:
-        - Given a destination, number of days, and preferences, create an engaging, well-structured itinerary.
-        - RETURN ONLY HTML that can be directly rendered in a browser.
-        - DO NOT return JSON, markdown, plain text, <think>, or any reasoning.
-        - DO NOT include <html>, <head>, or <body> tags.
-        - DO NOT include any <script> tags.
+                    role: 'system',
+                    content: `You are a travel itinerary designer for a web app.
 
-        Design rules:
-        - Wrap everything in a single <section> root.
-        - Use modern, clean, mobile-friendly layout.
-        - Use semantic tags: <section>, <header>, <article>, <ul>, <li>, <time>, <span>.
-        - Use classes (not inline styles) so the frontend can style it with Tailwind or CSS.
-        - Use small emojis to make it fun (🏖️, 🍽️, 🚌, ✨ etc.), but don't overdo it.
-        - Make key parts scannable: headings, tags/chips, dividers.
-        - Include:
-        - Trip title and destination
-        - Short summary
-        - Per-day breakdown with morning / afternoon / evening
-        - Highlighted “Must-try food”
-        - “Local tips & safety” section
-        - A small “Trip snapshot” summary (budget level, vibe, best for)
+                    Output requirements (STRICT):
+                    - Return ONLY Markdown (.md).
+                    - Do NOT return HTML, JSON, or any explanations.
+                    - Do NOT wrap the answer in code fences.
+                    - Do NOT include any <script> tags.
 
-        Example structure (you MUST follow this structure, just change the content and add more similar sections if needed):
+                    Design rules:
+                    - Use modern, clean, mobile-friendly layout.
+                    - Use clear headings, short paragraphs, and bullet lists.
+                    - Use small emojis (🏖️ 🍽️ 🚌 ✨) but do not overuse.
+                    - Make key parts scannable: headings, tags/chips, dividers.
 
-        <section class="trip-itinerary">
-        <header class="trip-header">
-            <h1>...</h1>
-            <p class="trip-tagline">...</p>
-            <div class="trip-tags">
-            <span class="tag">Beach</span>
-            <span class="tag">Nightlife</span>
-            <span class="tag">Culture</span>
-            </div>
-        </header>
+                    Must include:
+                    - Trip title and destination
+                    - Short summary
+                    - Per-day breakdown (morning / afternoon / evening)
+                    - Highlighted “Must-try food”
+                    - “Local tips & safety”
+                    - “Trip snapshot” (budget level, vibe, best for)
 
-        <section class="trip-summary">...</section>
+                    You MUST follow this Markdown structure (expand content as needed but keep the same structure):
 
-        <section class="trip-days">
-            <article class="day-card">
-            <h2>Day 1 - Title</h2>
-            <div class="day-block">
-                <h3>🌅 Morning</h3>
-                <ul>
-                <li>
-                    <time>08:00-10:00</time>
-                    <div class="activity">
-                    <strong>Activity name</strong>
-                    <p class="location">Location</p>
-                    <p class="details">Short description...</p>
-                    </div>
-                </li>
-                </ul>
-            </div>
-            <!-- Afternoon / Evening similarly -->
-            </article>
-            <!-- Day 2 / Day 3 ... -->
-        </section>
+                    # Trip title — Destination
+                    _Short tagline_
 
-        <section class="trip-food">...</section>
-        <section class="trip-tips">...</section>
-        </section>
-        `}
+                    Tags: 'Beach', 'Nightlife', 'Culture'
+
+                    ## Trip summary
+                    - ...
+
+                    ## Day-by-day plan
+                    ### Day 1 — Title
+                    #### 🌅 Morning
+                    - **08:00-10:00** — **Activity name** (Location)
+                    - Short description...
+
+                    #### ☀️ Afternoon
+                    - ...
+
+                    #### 🌙 Evening
+                    - ...
+
+                    ## 🍽️ Must-try food
+                    - ...
+
+                    ## 🧭 Local tips & safety
+                    - ...
+
+                    ## 📌 Trip snapshot
+                    - **Budget level:** ...
+                    - **Vibe:** ...
+                    - **Best for:** ...`
+                },
+                { role: 'user', content: userPrompt },
             ]
         });
         const content = data.choices[0].message.content;
         if (content) {
-            return content;
+            return this.normalizeItineraryMarkdown(content);
         }
         throw new Error('No response content received from LLM');
     };
@@ -117,33 +117,19 @@ export class LlmService {
 
     createVectorEmbeddingsForFiles = async (content: string[]) => {
         try {
-            // Check if Python service is available
-            const isHealthy = await this.checkPythonServiceHealth();
-            if (!isHealthy) {
-                throw new Error('Python embedding service is not running on localhost:8000');
-            }
+            const client = this.getOpenAIClient();
+            const model = this.configService.get<string>('OPENAI_EMBEDDING_MODEL') || 'text-embedding-3-small';
 
-            // Call Python embedding service
-            const response = await fetch('http://localhost:8000/embed', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    texts: content
-                })
+            const response = await client.embeddings.create({
+                model,
+                input: content,
             });
 
-            if (!response.ok) {
-                throw new Error(`Python service error: ${response.statusText}`);
-            }
-
-            const data = await response.json();
-            console.log('Embeddings generated:', data.embeddings.length, 'vectors of', data.embeddings[0]?.length, 'dimensions');
-
-            return data.embeddings;
+            const embeddings = response.data.map((d) => d.embedding);
+            console.log('Embeddings generated:', embeddings.length, 'vectors of', embeddings[0]?.length, 'dimensions');
+            return embeddings;
         } catch (error) {
-            console.error('Error calling Python embedding service:', error);
+            console.error('Error generating embeddings via OpenAI:', error);
             throw new Error('Failed to generate embeddings');
         }
     }

@@ -1,22 +1,35 @@
-import type { ReactNode } from "react";
-import styles from "./auth-shell.module.css";
+import { useQuery } from "@tanstack/react-query";
+import { useEffect } from "react";
 
-type AuthShellProps = {
-  children: ReactNode;
-  hero: ReactNode;
-};
+export const PaginatedList = () => {
+  const { data: user, isLoading } = useQuery({
+    queryKey: ["users", "list"],
+    queryFn: async () : Promise<any[]> => {
+      const response = await fetch(
+        "https://jsonplaceholder.typicode.com/users/1"
+      );
+      const data : any[] = await response.json();
+      return data;
+    },
+  });
 
-export function AuthShell({ children, hero }: AuthShellProps) {
-  return (
-    <div className={styles.shell}>
-      <div className={styles.glowOne} />
-      <div className={styles.glowTwo} />
-      <div className={styles.grid}>
-        <section className={styles.panel}>{children}</section>
-        <aside className={styles.hero}>{hero}</aside>
-      </div>
+  useEffect(() => {
+    if (!isLoading && user) {
+      console.log(user);
+    }
+  }, [user]);
+
+  return <div>
+ {
+   user?.map(item =>{
+    return <div>
+    <p>{item.name}</p>
+    <p>{item.email}</p>
+    <p>{item.phone}</p>
     </div>
-  );
-}
+   })
+ }
 
 
+  </div>;
+};
